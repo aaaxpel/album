@@ -13,6 +13,7 @@ func Router() {
 
 	r.Use(middleware.Logger)
 
+	r.Get("/api/image/:uuid", images.GetOneHandler)
 	r.Post("/api/upload", images.UploadHandler)
 
 	http.ListenAndServe(":8080", r)

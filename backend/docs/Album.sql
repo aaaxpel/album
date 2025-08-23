@@ -1,7 +1,7 @@
 CREATE TYPE "perms" AS ENUM (
   'viewer',
   'editor',
-  'creator'
+  'owner'
 );
 
 CREATE TYPE "roles" AS ENUM (
@@ -11,13 +11,21 @@ CREATE TYPE "roles" AS ENUM (
 
 CREATE TABLE "images" (
   "id" int PRIMARY KEY NOT NULL,
+  "original_name" varchar NOT NULL,
   "name" varchar(40),
   "description" text,
   "path" varchar NOT NULL,
-  "user_id" int,
+  "size" int,
+  "publisher_id" int,
   "taken_at" timestamp,
   "uploaded_at" timestamp NOT NULL DEFAULT (now()),
   "updated_at" timestamp
+);
+
+CREATE TABLE "previews" (
+  "id" int PRIMARY KEY NOT NULL,
+  "path" varchar NOT NULL,
+  "image_id" int NOT NULL
 );
 
 CREATE TABLE "albums" (
@@ -52,7 +60,7 @@ CREATE TABLE "user_perms" (
   "permissions" perms NOT NULL
 );
 
-ALTER TABLE "images" ADD FOREIGN KEY ("user_id") REFERENCES "users" ("id");
+ALTER TABLE "images" ADD FOREIGN KEY ("publisher_id") REFERENCES "users" ("id");
 
 ALTER TABLE "album_actions" ADD FOREIGN KEY ("album_id") REFERENCES "albums" ("id");
 
@@ -65,3 +73,5 @@ ALTER TABLE "user_perms" ADD FOREIGN KEY ("album_id") REFERENCES "albums" ("id")
 ALTER TABLE "albums_images" ADD FOREIGN KEY ("image_id") REFERENCES "images" ("id");
 
 ALTER TABLE "albums_images" ADD FOREIGN KEY ("album_id") REFERENCES "albums" ("id");
+
+ALTER TABLE "previews" ADD FOREIGN KEY ("image_id") REFERENCES "images" ("id");

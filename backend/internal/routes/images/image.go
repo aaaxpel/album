@@ -8,9 +8,13 @@ import (
 	"os"
 	"path/filepath"
 
-	cmd "github.com/aaaxpel/album/internal/db"
+	db "github.com/aaaxpel/album/internal/db"
 	"github.com/google/uuid"
 )
+
+func GetOneHandler(w http.ResponseWriter, r *http.Request) {
+
+}
 
 func UploadHandler(w http.ResponseWriter, r *http.Request) {
 	err := r.ParseMultipartForm(10 << 20) // 10 MB RAM allocation
@@ -27,6 +31,8 @@ func UploadHandler(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "Error retrieving file", http.StatusBadRequest)
 			return
 		}
+
+		// fmt.Println(fileHeader.Size)
 
 		defer file.Close()
 
@@ -55,6 +61,6 @@ func UploadHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func saveToDB() {
-	conn := cmd.Connect()
+	conn := db.Connect()
 	conn.Ping(context.Background())
 }

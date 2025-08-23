@@ -1,2 +1,3 @@
-backend/uploads/*
+backend/uploads/original/*
+backend/uploads/previews/*
 .env
