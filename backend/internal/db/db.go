@@ -1,4 +1,4 @@
-package internal
+package cmd
 
 import (
 	"context"
@@ -9,7 +9,7 @@ import (
 	"github.com/joho/godotenv"
 )
 
-func connect() *pgx.Conn {
+func Connect() *pgx.Conn {
 	_ = godotenv.Load()
 
 	if url, ok := os.LookupEnv("DB"); ok {
