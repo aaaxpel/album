@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"sync"
 
 	db "github.com/aaaxpel/album/internal/db"
 	"github.com/google/uuid"
@@ -32,73 +33,104 @@ func UploadHandler(w http.ResponseWriter, r *http.Request) {
 
 	files := r.MultipartForm.File["file"]
 
-	for _, fileHeader := range files {
-		file, err := fileHeader.Open()
-		if err != nil {
-			http.Error(w, "Error retrieving file", http.StatusBadRequest)
-			return
-		}
+	const fileCount = 10
 
-		defer file.Close()
+	jobs := make(chan *multipart.FileHeader, fileCount)
+	errors := make(chan error, fileCount)
 
-		name, _ := uuid.NewV7()
-
-		// Preview
-		decodedFile, err := decodeImage(file, fileHeader.Header.Get("Content-Type"))
-		if err != nil {
-			switch err.Error() {
-			case "invalid type":
-				http.Error(w, "Invalid file type", http.StatusBadRequest)
-				return
-			default:
-				fmt.Println(err.Error())
-				http.Error(w, "Error decoding image", http.StatusBadRequest)
-				return
-			}
-		}
-
-		go func() {
-			err = encodeImage(name, decodedFile)
-			if err != nil {
-				http.Error(w, "Error encoding image", http.StatusInternalServerError)
-				return
-			}
-		}()
-
-		// fmt.Println(fileHeader.Size)
-
-		// Resetting reader position to the beginning
-		if seeker, ok := file.(io.Seeker); ok {
-			seeker.Seek(0, io.SeekStart)
-		}
-
-		// Original destination file
-		output, err := os.Create(filepath.Join("uploads", "original", name.String()+filepath.Ext(fileHeader.Filename)))
-		if err != nil {
-			http.Error(w, "Error creating the file", http.StatusInternalServerError)
-			fmt.Fprintf(os.Stderr, "Error creating the file: %v\n", err)
-			return
-		}
-
-		defer output.Close()
-
-		// Saving original file / Copying contents to output
-		_, err = io.Copy(output, file)
-		if err != nil {
-			http.Error(w, "Error saving file", http.StatusInternalServerError)
-			return
-		}
-
+	var wg sync.WaitGroup
+	for range fileCount {
+		wg.Add(1)
+		go worker(jobs, errors, &wg)
 	}
+
+	for _, file := range files {
+		jobs <- file
+	}
+	close(jobs)
+
+	go func() {
+		wg.Wait()
+		close(errors)
+	}()
+
+	// for _, fileHeader := range files {
+	// 	go processFile(w, fileHeader)
+	// }
 
 	saveToDB()
 
 	w.Write([]byte("Files uploaded successfully!"))
 }
 
-func saveToDB() {
-	conn := db.Connect()
-	conn.Ping(context.Background())
+func worker(jobs <-chan *multipart.FileHeader, errors chan<- error, wg *sync.WaitGroup) {
+	defer wg.Done()
+
+	for job := range jobs {
+		err := processFile(job)
+		errors <- err
+	}
+}
+
+func processFile(fileHeader *multipart.FileHeader) error {
+	file, err := fileHeader.Open()
+	if err != nil {
+		// error handling
+		// return fmt.Errorf("Error retrieving file")
+	}
+
+	defer file.Close()
+
+	name, _ := uuid.NewV7()
+
+	// Preview
+	decodedFile, err := decodeImage(file, fileHeader.Header.Get("Content-Type"))
+	if err != nil {
+		switch err.Error() {
+		case "invalid type":
+			// error handling
+			// return fmt.Errorf("Invalid file type")
+		default:
+			fmt.Println(err.Error())
+			// error handling
+			// return fmt.Errorf("Error decoding image")
+		}
+	}
+
+	go func() {
+		err = encodeImage(name, decodedFile)
+		if err != nil {
+			// error handling
+			return
+		}
+	}()
+
+	// fmt.Println(fileHeader.Size)
+
+	// Resetting reader position to the beginning
+	if seeker, ok := file.(io.Seeker); ok {
+		seeker.Seek(0, io.SeekStart)
+	}
+
+	// Original destination file
+	output, err := os.Create(filepath.Join("uploads", "original", name.String()+filepath.Ext(fileHeader.Filename)))
+	if err != nil {
+		// error handling
+		fmt.Fprintf(os.Stderr, "Error creating the file: %v\n", err)
+		// return
+	}
+
+	defer output.Close()
+
+	// Saving original file / Copying contents to output
+	_, err = io.Copy(output, file)
+	if err != nil {
+		// error handling
+		// http.Error(w, "Error saving file", http.StatusInternalServerError)
+		// return
+	}
+
+	return nil
 }
 
 func decodeImage(img multipart.File, contentType string) (image.Image, error) {
@@ -144,4 +176,9 @@ func encodeImage(name uuid.UUID, img image.Image) error {
 	}
 
 	return nil
+}
+
+func saveToDB() {
+	conn := db.Connect()
+	conn.Ping(context.Background())
 }
