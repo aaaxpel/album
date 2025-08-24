@@ -39,12 +39,40 @@ func UploadHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		// fmt.Println(fileHeader.Size)
-
 		defer file.Close()
 
-		// Original destination file
 		name, _ := uuid.NewV7()
+
+		// Preview
+		decodedFile, err := decodeImage(file, fileHeader.Header.Get("Content-Type"))
+		if err != nil {
+			switch err.Error() {
+			case "invalid type":
+				http.Error(w, "Invalid file type", http.StatusBadRequest)
+				return
+			default:
+				fmt.Println(err.Error())
+				http.Error(w, "Error decoding image", http.StatusBadRequest)
+				return
+			}
+		}
+
+		go func() {
+			err = encodeImage(name, decodedFile)
+			if err != nil {
+				http.Error(w, "Error encoding image", http.StatusInternalServerError)
+				return
+			}
+		}()
+
+		// fmt.Println(fileHeader.Size)
+
+		// Resetting reader position to the beginning
+		if seeker, ok := file.(io.Seeker); ok {
+			seeker.Seek(0, io.SeekStart)
+		}
+
+		// Original destination file
 		output, err := os.Create(filepath.Join("uploads", "original", name.String()+filepath.Ext(fileHeader.Filename)))
 		if err != nil {
 			http.Error(w, "Error creating the file", http.StatusInternalServerError)
@@ -61,30 +89,6 @@ func UploadHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		// Resetting reader position to the beginning
-		if seeker, ok := file.(io.Seeker); ok {
-			seeker.Seek(0, io.SeekStart)
-		}
-
-		// Preview
-		decodedFile, err := decodeImage(file, fileHeader.Header.Get("Content-Type"))
-		if err != nil {
-			switch err.Error() {
-			case "invalid type":
-				http.Error(w, "Invalid file type", http.StatusBadRequest)
-				return
-			default:
-				fmt.Println(err.Error())
-				http.Error(w, "Error decoding image", http.StatusBadRequest)
-				return
-			}
-		}
-
-		err = encodeImage(name, decodedFile)
-		if err != nil {
-			http.Error(w, "Error encoding image", http.StatusInternalServerError)
-			return
-		}
 	}
 
 	saveToDB()
