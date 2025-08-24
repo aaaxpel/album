@@ -1,7 +1,6 @@
 package images
 
 import (
-	"context"
 	"fmt"
 	"image"
 	"image/gif"
@@ -14,7 +13,6 @@ import (
 	"path/filepath"
 	"sync"
 
-	db "github.com/aaaxpel/album/internal/db"
 	"github.com/google/uuid"
 	"github.com/kolesa-team/go-webp/encoder"
 	"github.com/kolesa-team/go-webp/webp"
@@ -54,9 +52,7 @@ func UploadHandler(w http.ResponseWriter, r *http.Request) {
 		close(errors)
 	}()
 
-	// for _, fileHeader := range files {
-	// 	go processFile(w, fileHeader)
-	// }
+	fmt.Println(<-errors)
 
 	saveToDB()
 
@@ -76,7 +72,7 @@ func processFile(fileHeader *multipart.FileHeader) error {
 	file, err := fileHeader.Open()
 	if err != nil {
 		// error handling
-		// return fmt.Errorf("Error retrieving file")
+		return fmt.Errorf("error retrieving file")
 	}
 
 	defer file.Close()
@@ -89,19 +85,20 @@ func processFile(fileHeader *multipart.FileHeader) error {
 		switch err.Error() {
 		case "invalid type":
 			// error handling
-			// return fmt.Errorf("Invalid file type")
+			return fmt.Errorf("invalid file type")
 		default:
-			fmt.Println(err.Error())
 			// error handling
-			// return fmt.Errorf("Error decoding image")
+			return fmt.Errorf("error decoding image: %v", err.Error())
 		}
 	}
+
+	errors := make(chan error)
 
 	go func() {
 		err = encodeImage(name, decodedFile)
 		if err != nil {
 			// error handling
-			return
+			errors <- err
 		}
 	}()
 
@@ -116,8 +113,7 @@ func processFile(fileHeader *multipart.FileHeader) error {
 	output, err := os.Create(filepath.Join("uploads", "original", name.String()+filepath.Ext(fileHeader.Filename)))
 	if err != nil {
 		// error handling
-		fmt.Fprintf(os.Stderr, "Error creating the file: %v\n", err)
-		// return
+		return fmt.Errorf("error creating the file: %v", err.Error())
 	}
 
 	defer output.Close()
@@ -125,9 +121,7 @@ func processFile(fileHeader *multipart.FileHeader) error {
 	// Saving original file / Copying contents to output
 	_, err = io.Copy(output, file)
 	if err != nil {
-		// error handling
-		// http.Error(w, "Error saving file", http.StatusInternalServerError)
-		// return
+		return fmt.Errorf("error saving file: %v", err.Error())
 	}
 
 	return nil
@@ -179,6 +173,6 @@ func encodeImage(name uuid.UUID, img image.Image) error {
 }
 
 func saveToDB() {
-	conn := db.Connect()
-	conn.Ping(context.Background())
+	// conn := db.Connect()
+	// conn.Ping(context.Background())
 }
