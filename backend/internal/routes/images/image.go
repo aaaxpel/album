@@ -1,6 +1,7 @@
 package images
 
 import (
+	"encoding/json"
 	"fmt"
 	"image"
 	"image/gif"
@@ -18,6 +19,11 @@ import (
 	"github.com/kolesa-team/go-webp/webp"
 )
 
+type FileError struct {
+	File  string `json:"file"`
+	Error string `json:"error"`
+}
+
 func GetOneHandler(w http.ResponseWriter, r *http.Request) {
 
 }
@@ -34,7 +40,7 @@ func UploadHandler(w http.ResponseWriter, r *http.Request) {
 	const fileCount = 10
 
 	jobs := make(chan *multipart.FileHeader, fileCount)
-	errors := make(chan error, fileCount)
+	errors := make(chan FileError, fileCount)
 
 	var wg sync.WaitGroup
 	for range fileCount {
@@ -52,26 +58,42 @@ func UploadHandler(w http.ResponseWriter, r *http.Request) {
 		close(errors)
 	}()
 
-	fmt.Println(<-errors)
+	var fileErrors []FileError
+
+	for err := range errors {
+		fileErrors = append(fileErrors, err)
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+
+	switch len(fileErrors) {
+	case 0:
+		w.WriteHeader(200) // Success
+	case len(files):
+		w.WriteHeader(400) // Bad request
+	default:
+		w.WriteHeader(207) // Partial success
+	}
+
+	json.NewEncoder(w).Encode(fileErrors)
 
 	saveToDB()
-
-	w.Write([]byte("Files uploaded successfully!"))
 }
 
-func worker(jobs <-chan *multipart.FileHeader, errors chan<- error, wg *sync.WaitGroup) {
+func worker(jobs <-chan *multipart.FileHeader, errors chan<- FileError, wg *sync.WaitGroup) {
 	defer wg.Done()
 
 	for job := range jobs {
 		err := processFile(job)
-		errors <- err
+		if err != nil {
+			errors <- FileError{job.Filename, err.Error()}
+		}
 	}
 }
 
 func processFile(fileHeader *multipart.FileHeader) error {
 	file, err := fileHeader.Open()
 	if err != nil {
-		// error handling
 		return fmt.Errorf("error retrieving file")
 	}
 
@@ -84,24 +106,23 @@ func processFile(fileHeader *multipart.FileHeader) error {
 	if err != nil {
 		switch err.Error() {
 		case "invalid type":
-			// error handling
 			return fmt.Errorf("invalid file type")
 		default:
-			// error handling
 			return fmt.Errorf("error decoding image: %v", err.Error())
 		}
 	}
 
-	errors := make(chan error)
+	encodingErr := make(chan error)
 
 	go func() {
-		err = encodeImage(name, decodedFile)
-		if err != nil {
-			// error handling
-			errors <- err
-		}
+		encodingErr <- encodeImage(name, decodedFile)
 	}()
 
+	if err := <-encodingErr; err != nil {
+		return fmt.Errorf("error encoding image: %v", err)
+	}
+
+	// This is here just so I don't forget about database
 	// fmt.Println(fileHeader.Size)
 
 	// Resetting reader position to the beginning
@@ -112,7 +133,6 @@ func processFile(fileHeader *multipart.FileHeader) error {
 	// Original destination file
 	output, err := os.Create(filepath.Join("uploads", "original", name.String()+filepath.Ext(fileHeader.Filename)))
 	if err != nil {
-		// error handling
 		return fmt.Errorf("error creating the file: %v", err.Error())
 	}
 
