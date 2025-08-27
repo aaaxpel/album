@@ -13,6 +13,8 @@ func Router() {
 
 	r.Use(middleware.Logger)
 
+	r.Mount("/debug", middleware.Profiler())
+
 	r.Get("/api/image/:uuid", images.GetOneHandler)
 	r.Post("/api/upload", images.UploadHandler)
 
