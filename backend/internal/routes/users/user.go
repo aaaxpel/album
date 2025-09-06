@@ -15,6 +15,9 @@ func Register(w http.ResponseWriter, r *http.Request) {
 	username := r.PostFormValue("username")
 	password := r.PostFormValue("password")
 
+	// validate password length
+	// validate username is unique (select)
+
 	hash, err := bcrypt.GenerateFromPassword([]byte(password), 8)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Unable to hash the password: %v\n", err)
@@ -26,7 +29,7 @@ func Register(w http.ResponseWriter, r *http.Request) {
 
 	_, err = pool.Exec(context.Background(), "INSERT INTO users (username, password) VALUES ('"+username+"', '"+string(hash)+"');")
 	fmt.Println("INSERT INTO users (username, password) VALUES ('" + username + "', '" + string(hash) + "');")
-	fmt.Println(err.Error())
+	fmt.Println(err)
 }
 
 // func validate() {
