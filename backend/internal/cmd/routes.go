@@ -21,6 +21,7 @@ func Router() {
 	r.Post("/api/upload", images.UploadHandler)
 
 	r.Post("/api/register", users.Register)
+	r.Post("/api/login", users.Login)
 
 	err := http.ListenAndServe(":8080", r)
 	if err != nil {
