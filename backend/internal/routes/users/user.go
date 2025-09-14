@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"net/http"
 	"os"
 	"time"
@@ -25,27 +26,44 @@ type User struct {
 
 func Register(w http.ResponseWriter, r *http.Request) {
 
+	pool := db.Connect()
+
 	username := r.PostFormValue("username")
 	password := r.PostFormValue("password")
 
 	// validate password length
 	// validate username is unique (select)
 
+	var exists bool
+	err := pool.QueryRow(
+		context.Background(),
+		"SELECT EXISTS(SELECT 1 FROM users WHERE username = $1);",
+		username,
+	).Scan(&exists)
+
+	if err != nil {
+		log.Printf("Error on existance check: %v", err)
+	}
+
+	if exists {
+		// User exists
+		return
+	}
+
 	hash, err := bcrypt.GenerateFromPassword([]byte(password), 8)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Unable to hash the password: %v\n", err)
 	}
 
-	println(username, string(hash))
-
-	pool := db.Connect()
-
 	_, err = pool.Exec(context.Background(), "INSERT INTO users (username, password) VALUES ('"+username+"', '"+string(hash)+"');")
-	fmt.Println("INSERT INTO users (username, password) VALUES ('" + username + "', '" + string(hash) + "');")
-	fmt.Println(err)
+	if err != nil {
+		log.Printf("Error while registering: \n%v", err)
+	}
 }
 
 func Login(w http.ResponseWriter, r *http.Request) {
+
+	// Check if the user is logged in first
 
 	username := r.PostFormValue("username")
 	password := r.PostFormValue("password")
