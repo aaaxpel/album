@@ -3,12 +3,12 @@ module github.com/aaaxpel/album
 go 1.24.5
 
 require (
+	github.com/chai2010/webp v1.4.0
 	github.com/go-chi/chi/v5 v5.2.2
 	github.com/go-chi/jwtauth/v5 v5.3.3
 	github.com/google/uuid v1.6.0
 	github.com/jackc/pgx/v5 v5.7.5
 	github.com/joho/godotenv v1.5.1
-	github.com/kolesa-team/go-webp v1.0.5
 	golang.org/x/crypto v0.37.0
 )
 

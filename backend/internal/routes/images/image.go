@@ -1,6 +1,7 @@
 package images
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"image"
@@ -8,15 +9,15 @@ import (
 	"image/jpeg"
 	"image/png"
 	"io"
+	"log"
 	"mime/multipart"
 	"net/http"
 	"os"
 	"path/filepath"
 	"sync"
 
+	"github.com/chai2010/webp"
 	"github.com/google/uuid"
-	"github.com/kolesa-team/go-webp/encoder"
-	"github.com/kolesa-team/go-webp/webp"
 )
 
 type FileError struct {
@@ -164,7 +165,7 @@ func decodeImage(img multipart.File, contentType string) (image.Image, error) {
 	}
 
 	if err != nil {
-		err = fmt.Errorf("error decoding image: %v", err.Error())
+		// Error decoding images
 		return nil, err
 	}
 
@@ -172,8 +173,9 @@ func decodeImage(img multipart.File, contentType string) (image.Image, error) {
 }
 
 func encodeImage(name uuid.UUID, img image.Image) error {
-	options, err := encoder.NewLossyEncoderOptions(encoder.PresetDefault, 70)
-	if err != nil {
+	var buf bytes.Buffer
+
+	if err := webp.Encode(&buf, img, &webp.Options{Quality: 0.70}); err != nil {
 		err := fmt.Errorf("encoding error: %v", err.Error())
 		return err
 	}
@@ -184,9 +186,11 @@ func encodeImage(name uuid.UUID, img image.Image) error {
 		return err
 	}
 
-	if err := webp.Encode(output, img, options); err != nil {
-		err := fmt.Errorf("error encoding the file: %v", err.Error())
-		return err
+	// Saving the file
+	_, err = io.Copy(output, &buf)
+	if err != nil {
+		log.Printf("Error saving file: %v", err.Error())
+		return fmt.Errorf("error saving file: %v", err.Error())
 	}
 
 	return nil
